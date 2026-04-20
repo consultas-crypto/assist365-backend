@@ -3,67 +3,296 @@
  * Alimenta tanto la Zendesk App como la Web App
  *
  * Requisitos: Node.js 18+
- * Variables de entorno necesarias:
- *   ANTHROPIC_API_KEY   — clave de API de Anthropic
- *   DOCS_URL_WTA        — URL pública Google Docs con condiciones de WTA (vouchers 365WT...)
- *   DOCS_URL_WM         — URL pública Google Docs con condiciones de WM  (vouchers 365WM...)
- *   PORT                — puerto (default 3000)
- *   ALLOWED_ORIGINS     — orígenes permitidos, separados por coma
+ * Variable de entorno necesaria:
+ *   ANTHROPIC_API_KEY — clave de API de Anthropic
+ *   PORT              — puerto (default 3000)
+ *   ALLOWED_ORIGINS   — orígenes permitidos, separados por coma
+ *
+ * Las condiciones generales están embebidas directamente en el código.
+ * Para actualizarlas, editar las constantes DOCS_WTA y DOCS_WM abajo.
  */
 
 const http = require("http");
 const https = require("https");
 const PORT = process.env.PORT || 3000;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
-const DOCS_URL_WTA = process.env.DOCS_URL_WTA || "";
-const DOCS_URL_WM  = process.env.DOCS_URL_WM  || "";
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "*").split(",");
 
-// Cache por proveedor (se refresca cada 10 min)
-const cache = {
-  WTA: { docs: "", expiry: 0 },
-  WM:  { docs: "", expiry: 0 },
-};
+// ─────────────────────────────────────────────────────────────
+// CONDICIONES GENERALES — WTA (vouchers 365WT...)
+// ─────────────────────────────────────────────────────────────
+const DOCS_WTA = `CONDICIONES GENERALES Y PARTICULARES — ASSIST 365 — PROVEEDOR WTA (vouchers 365WT...)
+VIGENCIA: NOVIEMBRE 2025
 
-async function fetchDocs(provider) {
-  const entry = cache[provider];
-  if (Date.now() < entry.expiry && entry.docs) return entry.docs;
+EDAD LÍMITE:
+- Planes larga estadía: 64 años
+- Planes viajes cortos: 85 años inclusive (50% recargo desde 75 hasta 85 años)
+- Planes multiviajes: 69 años
 
-  const url = provider === "WTA" ? DOCS_URL_WTA : DOCS_URL_WM;
-  if (!url) return `[Condiciones de ${provider} no configuradas. Definir DOCS_URL_${provider} en variables de entorno.]`;
+VIGENCIA: Desde cero horas del día de inicio hasta las 23:59 del día de fin indicado en el voucher. Planes viajes cortos: máximo 90 días. Planes larga estadía: 365 días.
 
-  return new Promise((resolve) => {
-    const parsed = new URL(url);
-    const lib = parsed.protocol === "https:" ? https : http;
-    lib.get(url, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => {
-        entry.docs = data.slice(0, 40000);
-        entry.expiry = Date.now() + 10 * 60 * 1000;
-        resolve(entry.docs);
-      });
-    }).on("error", () => resolve(`[Error al obtener las condiciones de ${provider}. Verificar la URL.]`));
-  });
-}
+VALIDEZ GEOGRÁFICA: Mundial. Excluye país de residencia habitual del beneficiario.
 
-/**
- * Detecta el proveedor leyendo el número de voucher en el texto.
- * Retorna "WTA", "WM", o null si no se detecta ninguno.
- */
+PROCEDIMIENTO DE ASISTENCIA: Contactar a la Central de Servicios de Asistencia ANTES de tomar cualquier iniciativa o gasto. Notificar dentro de las 24 horas de ocurrido el evento.
+
+DEFINICIONES CLAVE:
+- Accidente: daño corporal por agentes externos, violentos, súbitos e independientes de la voluntad del beneficiario.
+- Enfermedad Preexistente: proceso patológico con origen anterior al inicio del viaje o vigencia del plan.
+- Enfermedad Crónica: proceso patológico continuo mayor a 30 días.
+- Deportes Amateur: practicados por aficionados, ocio o actividades recreativas.
+- Deportes Profesionales: practicados con o sin lucro en competencias, torneos, campeonatos.
+- Monto global: límite máximo de cobertura económica total durante la vigencia.
+
+BENEFICIOS PRINCIPALES (verificar topes en el voucher):
+
+1. ASISTENCIA MÉDICA POR ACCIDENTE/ENFERMEDAD NO PREEXISTENTE:
+Consultas médicas, atención por especialistas (previa autorización), exámenes complementarios (previa autorización), internaciones, intervenciones quirúrgicas de emergencia, terapia intensiva.
+
+2. ASISTENCIA MÉDICA POR COVID-19 (hasta 85 años):
+Cubre gastos hospitalarios, respirador mecánico y test PCR (previa autorización médica). No opera como reintegro. No cubre cuarentena en hotel.
+
+3. COBERTURA EN PAÍS DE ORIGEN (limitado a accidentes):
+Solo si regresa por muerte de familiar en 1° grado o siniestro grave en domicilio. Vigencia máxima 30 días. Solo aplica para vacaciones demostrables.
+
+4. ASISTENCIA MÉDICA POR ENFERMEDAD PREEXISTENTE (si fue contratada):
+Solo episodios agudos e impredecibles. El beneficiario debe haber estado estable 12 meses previos. Excluye: diálisis, trasplantes, oncología, psiquiatría, enfermedades de transmisión sexual.
+
+5. MÉDICO ONLINE 24 HORAS: Telemedicina disponible 365 días.
+
+6. SOPORTE EMOCIONAL: Telepsicología disponible.
+
+7. URGENCIA ODONTOLÓGICA: Solo trauma, accidente o infección. Limitado a tratamiento del dolor y extracción. Excluye conductos, coronas, prótesis, limpiezas.
+
+8. MEDICAMENTOS AMBULATORIOS: Solo recetados por médico de la central, previa autorización. Solo primeros 30 días de tratamiento.
+
+9. EVACUACIÓN MÉDICA: Previa autorización de la central. Traslado al centro de salud más cercano.
+
+10. REPATRIACIÓN SANITARIA: Solo autorizada por Departamento Médico de ASSIST 365. En clase turista. No aplica para preexistencias salvo planes que las contemplen.
+
+11. REPATRIACIÓN FUNERARIA: Cubre féretro simple, trámites administrativos y transporte hasta aeropuerto de ingreso al país de residencia. No aplica si el fallecimiento es por suicidio, drogas o alcohol.
+
+12. TRASLADO DE FAMILIAR: Si hospitalización supera 10 días viajando solo. Un pasaje en clase turista.
+
+13. COMPENSACIÓN POR PÉRDIDA DE EQUIPAJE: Complementaria a lo que paga la aerolínea. Solo vuelos internacionales regulares. Requiere PIR y pago previo de la aerolínea.
+
+14. GASTOS POR VUELO DEMORADO O CANCELADO: Demora superior a 6 horas. Cubre alojamiento, alimentación y comunicaciones. No aplica desde ciudad de residencia habitual.
+
+15. GASTOS POR DEMORA DE EQUIPAJE: Demora superior a 6 horas. Solo artículos de primera necesidad (higiene y vestimenta básica).
+
+16. SALA VIP: Para planes iguales o mayores a USD 30.000. Requiere registrar vuelos 7 horas antes en https://travelregistration.online. Demora mayor a 60 minutos.
+
+UPGRADES OPCIONALES (deben constar en el voucher):
+
+UPGRADE COBERTURA DEPORTIVA (hasta USD 30.000):
+Deportes CUBIERTOS incluyen: Alpinismo/Andinismo hasta 5.500 m, Atletismo, Buceo autónomo, Cabalgata, Canotaje Británico, Ciclismo, Escalada en Muro (Palestra), Esquí acuático, Fútbol, Golf, Kayak, Maratones, Natación, Pádel, Paintball, Patinaje, Pesca, Rafting en río, Remo, Senderismo/Hiking, Snowboard, Squash, Tennis, Trekking hasta 1.000 m (baja montaña), Trekking desde 1.000 m hasta 1.500 m (media montaña), Trekking desde 1.500 m hasta 2.500 m (alta montaña), Vela, Voleibol, Waterpolo, Windsurf, y muchos más.
+
+IMPORTANTE TREKKING EN WTA:
+- Trekking baja montaña (hasta 1.000 m): CUBIERTO
+- Trekking media montaña (1.000 m a 1.500 m): CUBIERTO  
+- Trekking alta montaña (1.500 m a 2.500 m): CUBIERTO
+- Alpinismo/Andinismo moderada a alta altitud (2.001 m a 5.500 m): CUBIERTO
+- Alpinismo/Andinismo muy alta o extrema altitud (5.501 m a 7.500 m): EXCLUIDO
+
+Deportes EXCLUIDOS del upgrade deportivo WTA: Ala delta, Artes marciales, Automovilismo, Barranquismo, Biatlón, BMX, Boxeo, Canopy/tirolesa, Carreras de motos, Crossfit, Cuatrimoto, Escalada de roca, Escalada en hielo, Espeleología, Expediciones, Heli Skiing, Judo, Kárate, Kayak en rápidos de aguas bravas, Kick Boxing, Kitesurf, Levantamiento de pesas, Lucha, Luge, Maratón de montaña, Motociclismo, Motocross, Paracaidismo, Parapente, Paseos en globo, Puenting, Rugby, Skeleton, Surfing, Taekwondo, Tiro deportivo, Trekking extremo (más de 2.500 m — excluido en WTA), Triatlón, Wakesurfing, y otros.
+
+Límite de edad para deportes extremos: 15 a 65 años.
+
+UPGRADE CANCELACIÓN MULTI CAUSA: Cubre penalidades por cancelar tours, paquetes, vuelos, cruceros. Causas al 100%: fallecimiento/accidente/enfermedad grave, convocatoria judicial, daños en domicilio, cuarentena médica, despido laboral, servicio militar, epidemia/desastre natural, complicaciones de embarazo, cancelación de boda. Causas al 70%: secuestro, cancelación por empresa, cambio de trabajo, no aprobación de visa. No aplica mayores de 74 años.
+
+UPGRADE EMBARAZO: Hasta semana 32 de gestación. Cubre emergencias, partos de emergencia, ecografías de urgencia. No cubre controles rutinarios, partos normales, gastos del recién nacido. Edad: 19 a 45 años.
+
+UPGRADE TECNOLOGÍA PROTEGIDA: Cubre robo/pérdida/hurto de: cámaras (USD 400), filmadoras (USD 250), celulares (USD 750), tablets (USD 450), laptops (USD 800). No cubre daños accidentales. Requiere denuncia policial dentro de las 24 horas.
+
+UPGRADE ROTURA DE EQUIPAJE: Daño que exponga el contenido. Solo durante vuelo internacional. Informar dentro de las 24 horas.
+
+UPGRADE MASCOTAS: Perros y gatos de 4 meses a 8 años. Vacunación completa obligatoria. Solo emergencias comprobables. Incluye repatriación funeraria de mascota.
+
+UPGRADE PARQUE TEMÁTICO: 70% del valor del ticket. Causas: cierre por clima, enfermedad grave, cierre del parque, accidente de tránsito camino al parque. No aplica mayores de 74 años.
+
+EXCLUSIONES GENERALES (aplican a todos los beneficios):
+- Enfermedades preexistentes, crónicas o recurrentes (salvo upgrade específico contratado)
+- Infarto cerebral, ACV, cáncer, tumores, aterosclerosis, infarto al miocardio, angina de pecho, neumonía
+- Tratamientos no autorizados por la central
+- Homeopatía, acupuntura, curas termales, podología, manicura, pedicura
+- Lesiones por actos criminales del beneficiario
+- Tratamientos por drogas, narcóticos, alcohol o medicamentos sin receta
+- Prótesis dentales, lentes, audífonos, sillas de ruedas, muletas
+- Competencias deportivas y deportes de riesgo no cubiertos por upgrade
+- Enfermedades mentales (neurosis, psicosis, etc.)
+- Embarazo, parto, controles ginecológicos (salvo upgrade)
+- SIDA/VIH, enfermedades venéreas
+- Eventos por fuerzas naturales extraordinarias (tsunami, terremoto, huracán)
+- Suicidio o intento de suicidio
+- Guerras, terrorismo, actos de guerra
+- Exámenes de rutina o preventivos
+- Hernias de cualquier tipo
+- Situación migratoria o laboral ilegal
+- Trabajo en el exterior (cualquier tipo)
+- Países en guerra civil o extranjera (Afganistán, Irak, Sudán, Somalia, Corea del Norte)
+
+REINTEGROS:
+- Plazo para presentar documentación: 30 días desde finalización del voucher
+- ASSIST 365 tiene 15 días para solicitar documentos faltantes
+- ASSIST 365 tiene 15 días hábiles para analizar y emitir carta de aprobación/negación
+- Pago del reintegro: 15 días después de recibir datos bancarios completos
+- El beneficiario tiene 30 días desde la aprobación para enviar datos bancarios
+
+CONTACTO: operaciones@assist-365.com | Montevideo 757 3°, Buenos Aires, Argentina`;
+
+// ─────────────────────────────────────────────────────────────
+// CONDICIONES GENERALES — WM (vouchers 365WM...)
+// ─────────────────────────────────────────────────────────────
+const DOCS_WM = `CONDICIONES GENERALES Y PARTICULARES — ASSIST 365 — PROVEEDOR WM (vouchers 365WM...)
+VIGENCIA: DICIEMBRE 2025
+
+EDAD LÍMITE: 85 años inclusive (50% recargo desde 75 hasta 85 años).
+Para planes anuales multiviajes: hasta 74 años inclusive.
+
+VIGENCIA: Desde cero horas del día de inicio hasta las 23:59 del día de fin indicado en el voucher. Planes viajes cortos: máximo 90 días.
+
+VALIDEZ GEOGRÁFICA: Mundial. Excluye país de residencia habitual del beneficiario.
+
+PROCEDIMIENTO DE ASISTENCIA: Contactar a la Central de Asistencia ANTES de cualquier gasto. Puede hacerse por WhatsApp o teléfono. Notificar dentro de las 48 horas (WM tiene 48 horas, diferente a WTA que tiene 24 horas). Para casos en altamar: 48 horas después de desembarcar.
+
+DEFINICIONES CLAVE:
+- Accidente: daño corporal por agentes externos, violentos, súbitos.
+- Accidente Grave: amputación, fractura de huesos largos, trauma craneoencefálico, quemaduras 2° y 3° grado, lesiones severas de columna con compromiso medular, lesiones oculares o auditivas graves.
+- Enfermedad Preexistente: proceso patológico con origen anterior al inicio del viaje o vigencia del plan.
+- Enfermedad Crónica: proceso patológico continuo mayor a 30 días.
+- Paciente Estable: sin variación de estado de salud, síntomas y signos sin cambios recientes.
+- Monto máximo global evento múltiple: límite de USD 250.000 por acontecimiento/evento (máximo USD 150.000 por persona).
+
+BENEFICIOS PRINCIPALES (verificar topes en el voucher):
+
+1. ASISTENCIA MÉDICA POR ACCIDENTE/ENFERMEDAD NO PREEXISTENTE:
+Consultas médicas, atención por especialistas (previa autorización), exámenes complementarios (previa autorización), internaciones, intervenciones quirúrgicas de emergencia, terapia intensiva.
+LÍMITE POR CATÁSTROFE: máximo USD 150.000 por persona, USD 250.000 acumulado por evento.
+
+2. ASISTENCIA MÉDICA POR COVID-19 (hasta 85 años):
+Cubre gastos hospitalarios, respirador mecánico y test PCR (previa autorización médica). No opera como reintegro salvo autorización previa. No cubre cuarentena en hotel.
+
+3. COBERTURA EN PAÍS DE RESIDENCIA (limitado a accidentes):
+Solo si regresa por muerte de familiar en 1° grado o siniestro grave en domicilio. Vigencia máxima 30 días. Solo aplica si el beneficiario no tiene ningún sistema de cobertura en su país. Solo para vacaciones demostrables.
+
+4. ASISTENCIA MÉDICA POR ENFERMEDAD PREEXISTENTE (si fue contratada):
+Solo episodios agudos, descompensación súbita e inesperada. Para lograr estabilización. Excluye: diálisis, trasplantes, oncología, psiquiatría, enfermedades de transmisión sexual, viajes cuyo motivo sea tratamiento médico.
+
+5. MÉDICO ONLINE 24 HORAS: Telemedicina para dolencias leves. 365 días al año.
+
+6. TERAPIAS DE RECUPERACIÓN FÍSICA: Solo accidentes no laborales. Previa autorización. Máximo 10 sesiones.
+
+7. SOPORTE EMOCIONAL: Solo por repatriación sanitaria, fallecimiento de familiar o catástrofe natural durante el viaje.
+
+8. MEDICAMENTOS AMBULATORIOS: Solo recetados por médico de la central. Solo primeros 30 días.
+
+9. URGENCIA ODONTOLÓGICA: Solo trauma, accidente o infección. Solo tratamiento del dolor y extracción. Excluye conductos, coronas, prótesis, limpiezas.
+
+10. EVACUACIÓN MÉDICA: Previa autorización. Al centro de salud más cercano.
+
+11. REPATRIACIÓN SANITARIA: Solo autorizada por Departamento Médico. En clase turista. No aplica para preexistencias salvo planes que las contemplen.
+
+12. REPATRIACIÓN FUNERARIA: Féretro simple, trámites administrativos, transporte hasta aeropuerto del país de residencia. No aplica si fallecimiento es por suicidio, drogas, alcohol, o si el motivo del viaje era tratamiento médico. No aplica si la compra se hizo con el beneficiario ya hospitalizado.
+
+13. TRASLADO DE FAMILIAR: Si hospitalización supera 10 días viajando solo. Reembolso de un pasaje en clase turista hasta el monto máximo del plan.
+
+14. COBERTURA PARA MASCOTAS (incluida en algunos planes WM, no es upgrade):
+Perros y gatos de 4 meses a 8 años. Solo si la mascota queda hospitalizada. Cubre consultas, medicación, cirugías. Incluye repatriación funeraria. Vacunación completa obligatoria.
+
+15. ASISTENCIA EN ROBO O EXTRAVÍO DE DOCUMENTOS: Asesoramiento sobre procedimientos. No cubre costos de reemplazo.
+
+16. CONTENCIÓN FAMILIAR: Transmisión de mensajes y apoyo a familiares del beneficiario durante una urgencia.
+
+17. COMPENSACIÓN POR PÉRDIDA DE EQUIPAJE: Complementaria a la aerolínea. Solo vuelos internacionales regulares. Requiere PIR y pago previo de la aerolínea. No aplica para pérdidas en transporte terrestre.
+
+18. GASTOS POR VUELO DEMORADO O CANCELADO: Demora superior a 6 horas. Cubre alojamiento, alimentación y comunicaciones. Solo vestuario e higiene básica. No aplica desde ciudad de residencia.
+
+19. GASTOS POR DEMORA DE EQUIPAJE: Demora superior a 6 horas. Solo artículos de primera necesidad.
+
+20. SALA VIP: Demora de 60 minutos o más. Reintegro de gastos de sala VIP. Hasta 3 acompañantes beneficiarios de ASSIST 365. Solo viajes de hasta 89 días. Notificar dentro de las 48 horas.
+
+UPGRADES OPCIONALES WM (deben constar en el voucher):
+
+UPGRADE COBERTURA DEPORTIVA WM (hasta USD 30.000):
+Deportes CUBIERTOS incluyen: Aeromodelismo, Atletismo, Bádminton, Baloncesto, Béisbol, Buceo autónomo, Cabalgata con silla, Ciclismo, Ciclismo de montaña, Esquí, Fútbol, Golf, Hockey, Kayak, Maratones, Montañismo y escalada, Natación, Pádel, Paintball, Patinaje, Pesca deportiva, Remo, Skateboarding, Snorkel, Squash, Tenis, Trekking baja montaña (hasta 1.000 m), Trekking media montaña (1.000 m a 1.500 m), Vela, Voleibol, y muchos más.
+
+IMPORTANTE TREKKING EN WM:
+- Trekking baja montaña (hasta 1.000 m): CUBIERTO
+- Trekking media montaña (1.000 m a 1.500 m): CUBIERTO
+- Trekking alta montaña (desde 1.500 m hasta 2.500 m): EXCLUIDO en WM
+- Alpinismo por encima de 2.500 m: EXCLUIDO en WM
+
+DIFERENCIA CLAVE WTA vs WM EN TREKKING:
+- WTA cubre trekking hasta 5.500 m (con upgrade deportivo)
+- WM solo cubre trekking hasta 1.500 m (con upgrade deportivo)
+
+Deportes EXCLUIDOS del upgrade deportivo WM: Ala delta, Automovilismo, Barranquismo, Biatlón, BMX, Boxeo, Canopy/tirolesa, Canotaje, Carrera de montaña/senderos, Ciclismo de nieve, Ciclismo MTB, Crossfit, Cuatrimoto, Escalada de roca, Espeleología, Esquí alpino, Esquí de fondo, Esquí fuera de pista, Excursionismo, Judo/Yudo, Kárate, Kitesurf, Lucha, Luge, Moto náutica, Motociclismo, Paracaidismo, Parapente, Paseos en globo, Raquetas de nieve, Rugby, Snowboarding, Surfing, Taekwondo, Tiro deportivo, Trekking de alta montaña (desde 1.500 m), Triatlón, Trineo, y otros.
+
+Límite de edad para deportes: 15 a 65 años.
+
+UPGRADE CANCELACIÓN MULTI CAUSA: Cubre penalidades por cancelar tours, paquetes, vuelos, cruceros. Aviso a la central: máximo 48 horas (WM tiene 48 horas). Causas al 100%: fallecimiento/accidente/enfermedad grave, convocatoria judicial, daños en domicilio, cuarentena médica, despido laboral, servicio militar, epidemia/desastre natural, complicaciones de embarazo, cancelación de boda, entrega de niño en adopción, parto de emergencia. Causas al 70%: secuestro, cancelación por empresa, cambio de trabajo, no aprobación de visa. No aplica mayores de 74 años. Monto máximo global por evento: USD 10.000 para todos los beneficiarios afectados.
+
+UPGRADE EMBARAZO WM: Hasta semana 32 de gestación. Cubre emergencias, aborto espontáneo, partos de emergencia. No cubre controles rutinarios, partos normales, abortos provocados, gastos del recién nacido, embarazos mayores a 32 semanas. Edad: 19 a 45 años. El monto del upgrade está DENTRO del monto de asistencia médica general, no es adicional.
+
+UPGRADE TECNOLOGÍA PROTEGIDA WM: Solo cubre ROBO (no pérdida ni hurto como en WTA). Cámaras (USD 400), filmadoras (USD 250), celulares (USD 750), tablets (USD 450), laptops (USD 800). Máximo total USD 2.000. No aplica bajo custodia de aerolínea. Requiere denuncia policial dentro de las 24 horas.
+
+UPGRADE ROTURA DE EQUIPAJE WM: Daño en exterior del equipaje durante vuelo internacional. Aviso dentro de las 48 horas (WM tiene 48 horas). Solo cubre daño exterior, no robo o daño del contenido. Solo un equipaje por beneficiario.
+
+UPGRADE RESPONSABILIDAD CIVIL FRENTE A TERCEROS: Cubre daños personales y/o materiales causados a terceros como consecuencia directa de un accidente.
+
+UPGRADE MASCOTAS (adicional para planes que no incluyen mascotas): Mismas condiciones que la cobertura de mascotas incluida.
+
+EXCLUSIONES GENERALES WM (aplican a todos los beneficios):
+- Enfermedades preexistentes, crónicas o recurrentes (salvo upgrade específico)
+- Infarto cerebral, ACV, cáncer, tumores, aterosclerosis, infarto al miocardio, angina de pecho, neumonía
+- Tratamientos no autorizados por la central
+- Homeopatía, acupuntura, curas termales, podología, manicura, pedicura
+- Lesiones por actos criminales del beneficiario
+- Tratamientos por drogas, narcóticos, alcohol o medicamentos sin receta
+- Prótesis dentales, lentes, audífonos, sillas de ruedas, muletas
+- Competencias deportivas y deportes de riesgo no cubiertos por upgrade
+- Enfermedades mentales
+- Embarazo y parto (salvo upgrade)
+- SIDA/VIH, enfermedades e infecciones de transmisión sexual
+- Eventos por fuerzas naturales extraordinarias (tsunami, terremoto, huracán, cenizas volcánicas)
+- Suicidio o intento de suicidio
+- Guerras, terrorismo, actos de guerra
+- Actos de mala fe, mentiras u ocultamiento de información, documentación fraudulenta
+- Exámenes de rutina o preventivos
+- Hernias de cualquier tipo
+- Situación migratoria o laboral ilegal
+- Trabajo en el exterior (cualquier tipo)
+- Países en guerra civil o extranjera (Afganistán, Irak, Sudán, Somalia, Corea del Norte)
+- Enfermedades hepáticas (cirrosis, abscesos)
+
+DIFERENCIAS IMPORTANTES WM vs WTA:
+1. Plazo para notificar emergencia: WM tiene 48 horas (WTA tiene 24 horas)
+2. Trekking con upgrade deportivo: WM cubre hasta 1.500 m (WTA cubre hasta 5.500 m)
+3. Upgrade tecnología: WM solo cubre robo (WTA cubre robo, pérdida y hurto)
+4. Cobertura de mascotas: En WM puede estar incluida en el plan base (no solo como upgrade)
+5. Upgrade embarazo WM: el monto está DENTRO del monto general (no es adicional)
+6. Sala VIP WM: por reintegro, hasta 3 acompañantes, notificar en 48 horas
+7. Multiviajes WM: límite de edad hasta 74 años (WTA hasta 69 años)
+
+REINTEGROS:
+- Plazo para presentar documentación: 30 días desde finalización del voucher
+- Completar formulario online en www.assist-365.com
+- ASSIST 365 tiene 15 días para solicitar documentos faltantes
+- ASSIST 365 tiene 15 días hábiles para analizar y emitir carta de aprobación/negación
+- Pago del reintegro: 15 días después de recibir datos bancarios completos
+
+CONTACTO: operaciones@assist-365.com | Montevideo 757 3°, Buenos Aires, Argentina`;
+
+// ─────────────────────────────────────────────────────────────
+// Detección automática de proveedor por voucher
+// ─────────────────────────────────────────────────────────────
 function detectProvider(text) {
   if (!text) return null;
   const upper = text.toUpperCase();
-  // 365WT (WTA) tiene prioridad sobre WM para evitar falsos positivos
   if (upper.includes("365WT")) return "WTA";
   if (upper.includes("365WM")) return "WM";
   return null;
 }
 
-/**
- * Busca el proveedor en el historial de conversación (últimos 10 turnos).
- * Útil cuando el agente mencionó el voucher en un mensaje anterior.
- */
 function detectProviderFromHistory(history) {
   if (!Array.isArray(history)) return null;
   for (const turn of [...history].reverse()) {
@@ -73,12 +302,21 @@ function detectProviderFromHistory(history) {
   return null;
 }
 
-function buildSystemPrompt(docs, provider, lang) {
+function getDocs(provider) {
+  return provider === "WTA" ? DOCS_WTA : DOCS_WM;
+}
+
+// ─────────────────────────────────────────────────────────────
+// System prompt
+// ─────────────────────────────────────────────────────────────
+function buildSystemPrompt(provider, lang) {
   const langInstruction = lang === "pt"
     ? "Responde SIEMPRE em português do Brasil."
     : "Responde SIEMPRE en español.";
-
-  const providerLabel = provider === "WTA" ? "WTA (vouchers 365WT...)" : "WM (vouchers 365WM...)";
+  const providerLabel = provider === "WTA"
+    ? "WTA (vouchers 365WT...)"
+    : "WM (vouchers 365WM...)";
+  const docs = getDocs(provider);
 
   return `Sos el asistente interno de Assist365, una empresa de asistencia al viajero.
 Tu función es ayudar a los empleados a responder consultas sobre las condiciones generales del servicio.
@@ -90,14 +328,15 @@ Las condiciones cargadas corresponden ÚNICAMENTE a este proveedor.
 
 CAPACIDADES:
 1. Responder preguntas sobre coberturas y condiciones del servicio
-2. Citar el artículo o cláusula exacta de las condiciones cuando sea relevante
+2. Citar la sección o cláusula exacta de las condiciones cuando sea relevante
 3. Sugerir textos listos para enviar al cliente (cuando el empleado lo pida)
 4. Resumir cláusulas complejas en lenguaje simple y claro
+5. Señalar diferencias entre WTA y WM cuando sea relevante para la consulta
 
 REGLAS:
-- Basate ÚNICAMENTE en las condiciones generales del proveedor ${providerLabel} proporcionadas abajo
+- Basate ÚNICAMENTE en las condiciones del proveedor ${providerLabel} proporcionadas abajo
 - Si algo no está cubierto en las condiciones, indicalo claramente
-- Cuando cites un artículo, indicá el número/sección exacta
+- Cuando cites una sección, indicá el nombre exacto
 - Para sugerencias de respuesta al cliente, precedelas con "📋 TEXTO SUGERIDO PARA EL CLIENTE:"
 - Sé conciso y directo; los agentes necesitan respuestas rápidas
 - No inventes coberturas ni condiciones que no estén en el documento
@@ -108,44 +347,35 @@ ${docs}
 ---`;
 }
 
-// Mensaje que el asistente devuelve cuando no puede detectar el proveedor
 const ASK_PROVIDER = {
   es: `Para darte la respuesta correcta necesito saber el proveedor del pasajero.\n\n¿El número de voucher empieza con **365WT** (WTA) o **365WM** (WM)?`,
   pt: `Para te dar a resposta correta, preciso saber o provedor do passageiro.\n\nO número do voucher começa com **365WT** (WTA) ou **365WM** (WM)?`,
 };
 
+// ─────────────────────────────────────────────────────────────
+// Handler principal
+// ─────────────────────────────────────────────────────────────
 async function handleChat(body, res) {
   const { message, ticketContext, language, history } = body;
   if (!message) return sendJSON(res, 400, { error: "El campo 'message' es requerido." });
   if (!ANTHROPIC_API_KEY) return sendJSON(res, 500, { error: "ANTHROPIC_API_KEY no configurada." });
 
   const lang = (language || "es").toLowerCase().startsWith("pt") ? "pt" : "es";
-
-  // 1. Intentar detectar proveedor en el mensaje actual
-  // 2. Si no, buscar en el historial (el agente lo pudo haber mencionado antes)
   const provider = detectProvider(message) || detectProviderFromHistory(history);
 
-  // Si no se detectó proveedor, preguntarle al agente antes de continuar
   if (!provider) {
-    return sendJSON(res, 200, {
-      reply: ASK_PROVIDER[lang],
-      lang,
-      providerDetected: null,
-    });
+    return sendJSON(res, 200, { reply: ASK_PROVIDER[lang], lang, providerDetected: null });
   }
 
-  const docs = await fetchDocs(provider);
-  const systemPrompt = buildSystemPrompt(docs, provider, lang);
-
-  // Construir mensajes — incluye historial de conversación
+  const systemPrompt = buildSystemPrompt(provider, lang);
   const messages = [];
+
   if (history && Array.isArray(history)) {
-    for (const turn of history.slice(-10)) { // últimos 10 turnos
+    for (const turn of history.slice(-10)) {
       if (turn.role && turn.content) messages.push({ role: turn.role, content: turn.content });
     }
   }
 
-  // Agregar contexto del ticket si viene de Zendesk
   let userMessage = message;
   if (ticketContext) {
     userMessage = `[Contexto del ticket]\nAsunto: ${ticketContext.subject || "N/A"}\nCliente: ${ticketContext.requester || "N/A"}\nCanal: ${ticketContext.channel || "N/A"}\n\n[Consulta del agente]\n${message}`;
@@ -164,12 +394,11 @@ async function handleChat(body, res) {
 function callAnthropic(system, messages) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
-      model: "claude-sonnet-4-5",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system,
       messages,
     });
-
     const options = {
       hostname: "api.anthropic.com",
       path: "/v1/messages",
@@ -181,7 +410,6 @@ function callAnthropic(system, messages) {
         "Content-Length": Buffer.byteLength(payload),
       },
     };
-
     const req = https.request(options, (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
@@ -211,8 +439,7 @@ function sendJSON(res, status, data) {
 
 function getCORSHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin)
-    ? origin || "*"
-    : "";
+    ? origin || "*" : "";
   return {
     "Access-Control-Allow-Origin": allowed || ALLOWED_ORIGINS[0],
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -244,10 +471,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     return sendJSON(res, 200, {
       status: "ok",
-      providers: {
-        WTA: { docsLoaded: !!cache.WTA.docs, urlConfigured: !!DOCS_URL_WTA },
-        WM:  { docsLoaded: !!cache.WM.docs,  urlConfigured: !!DOCS_URL_WM  },
-      }
+      providers: { WTA: { docsLoaded: true }, WM: { docsLoaded: true } }
     });
   }
 
@@ -257,6 +481,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`✅ Assist365 Backend corriendo en puerto ${PORT}`);
   console.log(`   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY ? "✓ configurada" : "✗ FALTA"}`);
-  console.log(`   DOCS_URL_WTA: ${DOCS_URL_WTA || "✗ FALTA — condiciones de WTA (vouchers 365WT...)"}`);
-  console.log(`   DOCS_URL_WM:  ${DOCS_URL_WM  || "✗ FALTA — condiciones de WM  (vouchers 365WM...)"}`);
+  console.log(`   Condiciones WTA: ✓ embebidas`);
+  console.log(`   Condiciones WM:  ✓ embebidas`);
 });
