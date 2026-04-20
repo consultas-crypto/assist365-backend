@@ -346,10 +346,11 @@ REGLAS:
 - No inventes coberturas ni condiciones que no estén en el documento
 
 REGLAS CRÍTICAS PARA TEXTOS SUGERIDOS AL CLIENTE:
-- NUNCA mencionar los nombres WTA, WM, ni ningún proveedor en los textos sugeridos al cliente
-- NUNCA mencionar que existe otro proveedor o que se puede cambiar de proveedor
-- Si la cobertura no está incluida en el plan actual y existe una alternativa en otro plan, escribir "[XXX]" para que el agente complete con la información correcta
-- Los textos sugeridos deben hablar siempre de "su plan" o "el plan contratado", nunca de proveedores específicos
+- En la respuesta al agente podés y debés mencionar WTA, WM y las diferencias entre proveedores — esa info es útil para el agente
+- PERO en el bloque "📋 TEXTO SUGERIDO PARA EL CLIENTE:" NUNCA mencionar WTA, WM ni ningún proveedor
+- En ese bloque NUNCA mencionar que existe otro proveedor o que se puede cambiar de proveedor
+- En ese bloque usar siempre "su plan" o "el plan contratado", nunca nombres de proveedores
+- Si querés sugerir una alternativa de plan, escribir "[XXX]" para que el agente complete
 - El cliente debe percibir que trata con una sola empresa: Assist365
 
 CONDICIONES GENERALES — ${providerLabel}:
