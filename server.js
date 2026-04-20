@@ -288,8 +288,12 @@ CONTACTO: operaciones@assist-365.com | Montevideo 757 3°, Buenos Aires, Argenti
 function detectProvider(text) {
   if (!text) return null;
   const upper = text.toUpperCase();
+  // Detectar por número de voucher completo
   if (upper.includes("365WT")) return "WTA";
   if (upper.includes("365WM")) return "WM";
+  // Detectar cuando el agente escribe directamente el proveedor
+  if (/\bWTA\b/.test(upper)) return "WTA";
+  if (/\bWM\b/.test(upper)) return "WM";
   return null;
 }
 
